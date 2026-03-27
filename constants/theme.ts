@@ -1,41 +1,38 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
+// Pixel Eat design tokens
 export const Colors = {
+  // Legacy light/dark shape kept for components not yet migrated
   light: {
     text: '#11181C',
     background: '#fff',
-    tint: tintColorLight,
+    tint: '#000',
     icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    tabIconDefault: '#AAAAAA',
+    tabIconSelected: '#000',
   },
   dark: {
     text: '#ECEDEE',
     background: '#151718',
-    tint: tintColorDark,
+    tint: '#fff',
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    tabIconSelected: '#fff',
   },
+  // App-level tokens
+  background: '#ffffff',
+  text: '#000000',
+  textSecondary: '#999999',
+  accent: '#E05252',
+  accentGreen: '#2ECC71',
+  border: '#eeeeee',
 };
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
@@ -45,9 +42,25 @@ export const Fonts = Platform.select({
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    sans: 'system-ui',
+    serif: 'Georgia, serif',
+    rounded: 'system-ui',
+    mono: 'monospace',
   },
 });
+
+// Pixel font family name (Micro 5 from @expo-google-fonts/micro-5)
+export const Font = {
+  pixel: 'Micro5_400Regular',
+};
+
+// App-wide font size scale — edit here to resize everything at once
+export const FontSize = {
+  xs:      14,  // tiny secondary labels
+  sm:      16,  // timestamps, meta text
+  md:      18,  // primary body, names
+  lg:      20,  // section headers
+  xl:      26,  // screen titles, display names
+  stat:    32,  // stat numbers
+  display: 80,  // big one-off numbers (diary duck)
+};
