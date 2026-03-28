@@ -12,8 +12,86 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DIARY } from '@/constants/mockData';
 import { Font, FontSize } from '@/constants/theme';
+import INGREDIENT_IMAGES from '@/constants/ingredientImages';
+import MOCK_FOOD_IMAGES from '@/constants/mockFoodImages';
+import MOCK_POST_IMAGES from '@/constants/mockPostImages';
+import DishModal, { type DishEntry } from '@/components/DishModal';
 
 const WEEK_DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+type LoggedDay = { day: number; photoKey: string | null; caption: string | null };
+
+function DayModal({ entry, onClose }: { entry: LoggedDay; onClose: () => void }) {
+  const photoSource = entry.photoKey ? MOCK_POST_IMAGES[entry.photoKey] : null;
+  return (
+    <Modal visible animationType="fade" transparent>
+      <Pressable style={dayModal.backdrop} onPress={onClose}>
+        <Pressable style={dayModal.card} onPress={() => {}}>
+          <View style={dayModal.imageBox}>
+            {photoSource ? (
+              <Image source={photoSource} style={dayModal.photo} resizeMode="cover" />
+            ) : (
+              <View style={dayModal.noPhoto}>
+                <Image source={MOCK_POST_IMAGES['pan']} style={dayModal.panLarge} resizeMode="contain" />
+                <Text style={dayModal.noPhotoText}>no photo for this day</Text>
+              </View>
+            )}
+          </View>
+          {entry.caption && (
+            <Text style={dayModal.caption}>{entry.caption}</Text>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const dayModal = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  imageBox: {
+    width: '100%',
+    aspectRatio: 1,
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+  },
+  noPhoto: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    gap: 12,
+  },
+  panLarge: {
+    width: 80,
+    height: 80,
+    opacity: 0.4,
+  },
+  noPhotoText: {
+    fontFamily: Font.pixel,
+    fontSize: FontSize.sm,
+    color: '#aaa',
+  },
+  caption: {
+    fontFamily: Font.pixel,
+    fontSize: FontSize.md,
+    color: '#333',
+    padding: 16,
+  },
+});
 
 function CalendarGrid({
   year,
@@ -22,48 +100,65 @@ function CalendarGrid({
 }: {
   year: number;
   monthIndex: number;
-  loggedDays: number[];
+  loggedDays: LoggedDay[];
 }) {
-  const loggedSet = new Set(loggedDays);
-  const firstDay = new Date(year, monthIndex, 1).getDay(); // 0=Sun
-  // Convert to Mon-based index (Mon=0 … Sun=6)
+  const [selected, setSelected] = useState<LoggedDay | null>(null);
+  const loggedMap = new Map(loggedDays.map(e => [e.day, e]));
+  const firstDay = new Date(year, monthIndex, 1).getDay();
   const startOffset = (firstDay + 6) % 7;
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
-  // Build flat cell array (nulls for leading blanks)
   const cells: (number | null)[] = [
     ...Array(startOffset).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
-  // Pad to full weeks
   while (cells.length % 7 !== 0) cells.push(null);
 
   const weeks: (number | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
   return (
-    <View style={cal.wrapper}>
-      {/* Day headers */}
-      <View style={cal.row}>
-        {WEEK_DAYS.map((d, i) => (
-          <Text key={i} style={cal.header}>{d}</Text>
-        ))}
-      </View>
-      {weeks.map((week, wi) => (
-        <View key={wi} style={cal.row}>
-          {week.map((day, di) => (
-            <View key={di} style={cal.cell}>
-              {day !== null && (
-                <>
-                  <Text style={cal.dayNum}>{day}</Text>
-                  {loggedSet.has(day) && <Text style={cal.mealEmoji}>🍳</Text>}
-                </>
-              )}
-            </View>
+    <>
+      <View style={cal.wrapper}>
+        <View style={cal.row}>
+          {WEEK_DAYS.map((d, i) => (
+            <Text key={i} style={cal.header}>{d}</Text>
           ))}
         </View>
-      ))}
-    </View>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={cal.row}>
+            {week.map((day, di) => {
+              const entry = day !== null ? loggedMap.get(day) : undefined;
+              return (
+                <TouchableOpacity
+                  key={di}
+                  style={cal.cell}
+                  activeOpacity={entry ? 0.6 : 1}
+                  onPress={() => entry && setSelected(entry)}
+                >
+                  {day !== null && (
+                    <>
+                      <Text style={cal.dayNum}>{day}</Text>
+                      {entry && (
+                        <Image
+                          source={MOCK_POST_IMAGES['pan']}
+                          style={cal.panIcon}
+                          resizeMode="contain"
+                        />
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+
+      {selected && (
+        <DayModal entry={selected} onClose={() => setSelected(null)} />
+      )}
+    </>
   );
 }
 
@@ -104,8 +199,9 @@ const cal = StyleSheet.create({
     fontSize: FontSize.xs,
     color: '#333',
   },
-  mealEmoji: {
-    fontSize: 18,
+  panIcon: {
+    width: 22,
+    height: 22,
   },
 });
 
@@ -173,7 +269,7 @@ function ChallengeModal({
           <View style={cm.ingredientGrid}>
             {detail.ingredients.map((ing) => (
               <View key={ing.label} style={cm.ingredientItem}>
-                <Text style={cm.ingredientEmoji}>{ing.emoji}</Text>
+                <Image source={INGREDIENT_IMAGES[ing.imageKey]} style={cm.ingredientImage} resizeMode="contain" />
                 <Text style={cm.ingredientLabel}>{ing.label}</Text>
               </View>
             ))}
@@ -235,8 +331,9 @@ const cm = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  ingredientEmoji: {
-    fontSize: 48,
+  ingredientImage: {
+    width: 64,
+    height: 64,
   },
   ingredientLabel: {
     fontFamily: Font.pixel,
@@ -265,13 +362,33 @@ function Lantern({ filled }: { filled: boolean }) {
 }
 
 function DishTile({ item }: { item: typeof DIARY.dishesThisWeek[0] }) {
-  const isEmpty = !item.emoji;
+  const [selected, setSelected] = useState<DishEntry | null>(null);
+  const isEmpty = !item.imageKey;
+
+  const handlePress = () => {
+    if (!item.imageKey || !item.name) return;
+    setSelected({
+      imageSource: MOCK_FOOD_IMAGES[item.imageKey],
+      name: item.name,
+      cuisine: item.cuisine,
+      ingredients: item.ingredients,
+      recipeId: item.recipeId,
+    });
+  };
+
   return (
-    <View style={[styles.dishTile, { backgroundColor: item.bg }, isEmpty && styles.dishTileEmpty]}>
-      {item.emoji ? (
-        <Text style={styles.dishEmoji}>{item.emoji}</Text>
-      ) : null}
-    </View>
+    <>
+      <TouchableOpacity
+        style={[styles.dishTile, { backgroundColor: item.bg }, isEmpty && styles.dishTileEmpty]}
+        activeOpacity={isEmpty ? 1 : 0.75}
+        onPress={handlePress}
+      >
+        {item.imageKey ? (
+          <Image source={MOCK_FOOD_IMAGES[item.imageKey]} style={styles.dishImage} resizeMode="cover" />
+        ) : null}
+      </TouchableOpacity>
+      {selected && <DishModal dish={selected} onClose={() => setSelected(null)} />}
+    </>
   );
 }
 
@@ -476,8 +593,7 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
   },
   dishTileEmpty: {
     borderWidth: 1.5,
@@ -485,8 +601,9 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     backgroundColor: '#fafafa',
   },
-  dishEmoji: {
-    fontSize: 40,
+  dishImage: {
+    width: '100%',
+    height: '100%',
   },
   footer: {
     height: 24,

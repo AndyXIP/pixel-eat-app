@@ -1,14 +1,17 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { SpriteCompositor } from './SpriteCompositor';
 import { Font, FontSize } from '@/constants/theme';
+import { CircleCountryFlag, type CountryCode } from 'react-native-circle-flags';
 
 type Post = {
   id: string;
+  photoUrl: string;
+  cuisine: string;
   user: {
     displayName: string;
     username: string;
-    avatarColor: string;
+    avatarUrl: string;
   };
   date: string;
   caption: string;
@@ -23,16 +26,16 @@ type Post = {
 };
 
 export function PostCard({ post }: { post: Post }) {
+  const [spriteMain, setSpriteMain] = useState(false);
+  const photoSource = { uri: post.photoUrl };
+  const avatarSource = { uri: post.user.avatarUrl };
+
   return (
     <View style={styles.wrapper}>
       {/* User header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={[styles.avatar, { backgroundColor: post.user.avatarColor }]}>
-            <Text style={styles.avatarInitial}>
-              {post.user.displayName.replace(/\s.*/, '')[0]}
-            </Text>
-          </View>
+          <Image source={avatarSource} style={styles.avatar} resizeMode="cover" />
           <View>
             <Text style={styles.displayName}>{post.user.displayName}</Text>
             <Text style={styles.username}>@{post.user.username}</Text>
@@ -43,19 +46,36 @@ export function PostCard({ post }: { post: Post }) {
 
       {/* Post card */}
       <View style={styles.card}>
-        {/* Sprite — full bleed */}
-        <SpriteCompositor
-          vessel={post.ingredients.vessel}
-          base={post.ingredients.base}
-          toppings={post.ingredients.toppings}
-bgColor={post.spriteColors.bg}
-          accentColor={post.spriteColors.accent}
-        />
+        {/* Main full-bleed layer */}
+        {spriteMain ? (
+          <SpriteCompositor
+            vessel={post.ingredients.vessel}
+            base={post.ingredients.base}
+            toppings={post.ingredients.toppings}
+            bgColor={post.spriteColors.bg}
+            accentColor={post.spriteColors.accent}
+          />
+        ) : (
+          <View style={StyleSheet.absoluteFill}>
+            <Image source={photoSource} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          </View>
+        )}
 
-        {/* Real photo thumbnail (corner) — replace with actual camera photo */}
-        <View style={styles.photoThumb}>
-          <Text style={styles.photoThumbText}>📷</Text>
-        </View>
+        {/* Thumbnail — top right, tapping swaps */}
+        <TouchableOpacity style={styles.spriteThumb} onPress={() => setSpriteMain(v => !v)} activeOpacity={0.85}>
+          {spriteMain ? (
+            <Image source={photoSource} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          ) : (
+            <SpriteCompositor
+              vessel={post.ingredients.vessel}
+              base={post.ingredients.base}
+              toppings={post.ingredients.toppings}
+              size={72}
+              bgColor={post.spriteColors.bg}
+              accentColor={post.spriteColors.accent}
+            />
+          )}
+        </TouchableOpacity>
 
         {/* Hot steam overlay */}
         {post.isHot && (
@@ -69,7 +89,6 @@ bgColor={post.spriteColors.bg}
           <Text style={styles.captionText}>{post.caption}</Text>
           <Text style={styles.timeText}>{post.timeAgo}</Text>
         </View>
-
       </View>
 
       {/* Topping tags bar */}
@@ -79,6 +98,11 @@ bgColor={post.spriteColors.bg}
             <Text style={styles.tagText}>{t}</Text>
           </View>
         ))}
+        {post.cuisine && (
+          <View style={styles.flagTag}>
+            <CircleCountryFlag code={post.cuisine as CountryCode} size={20} />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -134,21 +158,16 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     backgroundColor: '#eee',
   },
-  photoThumb: {
+  spriteThumb: {
     position: 'absolute',
     top: 12,
     right: 12,
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: '#fff',
-  },
-  photoThumbText: {
-    fontSize: 24,
   },
   steamOverlay: {
     position: 'absolute',
@@ -196,6 +215,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     backgroundColor: '#f5f5f5',
+  },
+  flagTag: {
+    borderWidth: 1,
+    borderRadius: 4,
+    borderColor: '#ddd',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tagText: {
     fontFamily: Font.pixel,
