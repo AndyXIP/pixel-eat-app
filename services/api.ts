@@ -1,4 +1,6 @@
 import { apiFetch } from '@/constants/api';
+import { supabase } from '@/lib/supabase';
+import API_BASE_URL from '@/constants/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -101,7 +103,10 @@ export type ApiEvent = {
 
 // ── API calls ──────────────────────────────────────────────────────────────────
 
-export const getFeed      = (): Promise<ApiPost[]>    => apiFetch('/feed');
+export type ApiDishHistory = { id: string; date: string; photoUrl: string; name: string; cuisine: string | null; ingredients: string[]; recipe: ApiRecipe | null };
+
+export const getFeed        = (): Promise<ApiPost[]>         => apiFetch('/feed');
+export const getDishHistory = (): Promise<ApiDishHistory[]>  => apiFetch('/diary/dishes');
 export const getRecipes   = (): Promise<ApiRecipe[]>  => apiFetch('/recipes');
 export const getDiary     = (): Promise<ApiDiary>     => apiFetch('/diary');
 export const getProfile   = (): Promise<ApiProfile>   => apiFetch('/profile/me');
@@ -114,3 +119,61 @@ export const removeFriend = (userId: string): Promise<{ ok: boolean }> => apiFet
 export type QuickPostData = { vessel_type: string; is_hot: boolean; caption?: string; toppings: string[] };
 export const createQuickPost = (data: QuickPostData): Promise<unknown> =>
   apiFetch('/posts/quick', { method: 'POST', body: JSON.stringify(data) });
+
+export type ApiIngredient = { id: string; name: string; tier: string };
+export const getIngredients = (): Promise<ApiIngredient[]> => apiFetch('/ingredients');
+
+export const updateProfile = (data: { display_name?: string; avatar_url?: string }): Promise<unknown> =>
+  apiFetch('/users/me', { method: 'PUT', body: JSON.stringify(data) });
+
+export async function uploadAvatar(photoUri: string): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const formData = new FormData();
+  const filename = photoUri.split('/').pop() ?? 'avatar.jpg';
+  const ext = (filename.split('.').pop() ?? 'jpg').toLowerCase();
+  formData.append('photo', { uri: photoUri, name: filename, type: `image/${ext}` } as any);
+  const res = await fetch(`${API_BASE_URL}/users/me/avatar`, {
+    method: 'POST',
+    headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) throw new Error(`Upload failed: ${await res.text()}`);
+  const json = await res.json();
+  return json.avatarUrl;
+}
+
+const VESSEL_DB_MAP: Record<string, string> = {
+  bowl: 'bowl', plate: 'plate', wrap: 'wrap',
+  mug: 'cup', soup: 'bowl', pan: 'other',
+  sandwich: 'other', pizza: 'other',
+};
+
+export async function createPost(params: {
+  vesselType: string;
+  isHot: boolean;
+  caption?: string;
+  ingredientIds: string[];
+  photoUri: string;
+}): Promise<unknown> {
+  const { data: { session } } = await supabase.auth.getSession();
+
+  const formData = new FormData();
+  formData.append('vessel_type', VESSEL_DB_MAP[params.vesselType] ?? 'other');
+  formData.append('is_hot', String(params.isHot));
+  formData.append('ingredient_ids', JSON.stringify(params.ingredientIds));
+  formData.append('late_post_mins', '0');
+  if (params.caption) formData.append('caption', params.caption);
+
+  const filename = params.photoUri.split('/').pop() ?? 'photo.jpg';
+  const ext = (filename.split('.').pop() ?? 'jpg').toLowerCase();
+  formData.append('photo', { uri: params.photoUri, name: filename, type: `image/${ext}` } as any);
+
+  const res = await fetch(`${API_BASE_URL}/posts`, {
+    method: 'POST',
+    headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json();
+}

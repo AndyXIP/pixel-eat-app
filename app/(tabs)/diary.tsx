@@ -14,8 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Font, FontSize } from '@/constants/theme';
 import INGREDIENT_IMAGES from '@/constants/ingredientImages';
 import DishModal, { type DishEntry } from '@/components/DishModal';
-import { useApi } from '@/hooks/useApi';
-import { getDiary, type ApiDiary, type ApiDish, type ApiLoggedDay } from '@/services/api';
+import { useData } from '@/contexts/DataContext';
+import { type ApiDiary, type ApiDish, type ApiLoggedDay } from '@/services/api';
 import { apiImageUrl } from '@/constants/api';
 
 const WEEK_DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -402,7 +402,7 @@ function DishTile({ item }: { item: ApiDish }) {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function DiaryScreen() {
-  const { data: diary, loading } = useApi(getDiary);
+  const { diary, loading } = useData();
   const [tab, setTab] = useState<'diary' | 'events'>('diary');
   const [challengeOpen, setChallengeOpen] = useState(false);
 

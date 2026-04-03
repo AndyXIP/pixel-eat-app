@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,14 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { SpriteCompositor } from '@/components/SpriteCompositor';
 import { Font, FontSize } from '@/constants/theme';
-import { createQuickPost } from '@/services/api';
+import { createPost, createQuickPost, getIngredients, type ApiIngredient } from '@/services/api';
 
 const VESSELS = ['bowl', 'plate', 'sandwich', 'wrap', 'pizza', 'soup', 'pan', 'mug'];
 const VESSEL_EMOJI: Record<string, string> = {
@@ -28,23 +30,58 @@ export default function CreatePostScreen() {
   const [toppings, setToppings] = useState<string[]>([]);
   const [isHot, setIsHot] = useState(true);
   const [caption, setCaption] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [ingredients, setIngredients] = useState<ApiIngredient[]>([]);
 
-  const toggleTopping = (t: string) => {
-    setToppings((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
-    );
+  useEffect(() => {
+    getIngredients().then(setIngredients).catch(() => {});
+  }, []);
+
+  const toggleTopping = (t: string) =>
+    setToppings(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+
+  const pickPhoto = () => {
+    Alert.alert('Add photo', undefined, [
+      {
+        text: 'Take photo',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') { Alert.alert('Camera permission required'); return; }
+          const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+          if (!result.canceled) setPhotoUri(result.assets[0].uri);
+        },
+      },
+      {
+        text: 'Choose from library',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') { Alert.alert('Photo library permission required'); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+          if (!result.canceled) setPhotoUri(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handlePost = async () => {
     setPosting(true);
     try {
-      await createQuickPost({
-        vessel_type: vessel,
-        is_hot: isHot,
-        caption: caption.trim() || undefined,
-        toppings,
-      });
+      if (photoUri) {
+        const ingredientIds = ingredients
+          .filter(ing => toppings.some(t => t.toLowerCase() === ing.name.toLowerCase()))
+          .map(ing => ing.id);
+        await createPost({
+          vesselType: vessel,
+          isHot,
+          caption: caption.trim() || undefined,
+          ingredientIds,
+          photoUri,
+        });
+      } else {
+        await createQuickPost({ vessel_type: vessel, is_hot: isHot, caption: caption.trim() || undefined, toppings });
+      }
       router.back();
     } catch (e: any) {
       Alert.alert('Failed to post', e.message ?? 'Something went wrong');
@@ -63,21 +100,30 @@ export default function CreatePostScreen() {
         <TouchableOpacity onPress={handlePost} disabled={posting} activeOpacity={0.7}>
           {posting
             ? <ActivityIndicator color="#E05252" />
-            : <Text style={styles.post}>POST</Text>
-          }
+            : <Text style={styles.post}>POST</Text>}
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Live sprite preview */}
-        <View style={styles.spriteWrapper}>
-          <SpriteCompositor
-            vessel={vessel}
-            base="rice"
-            toppings={toppings}
-            size={280}
-          />
-        </View>
+
+        {/* Photo / sprite preview */}
+        <TouchableOpacity style={styles.photoWrapper} onPress={pickPhoto} activeOpacity={0.85}>
+          {photoUri ? (
+            <>
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
+              <View style={styles.photoEditBadge}>
+                <Text style={styles.photoEditText}>CHANGE</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <SpriteCompositor vessel={vessel} base="rice" toppings={toppings} size={280} />
+              <View style={styles.photoCta}>
+                <Text style={styles.photoCtaText}>📷  ADD PHOTO</Text>
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
 
         {/* Caption */}
         <Text style={styles.label}>CAPTION</Text>
@@ -94,7 +140,7 @@ export default function CreatePostScreen() {
         {/* Vessel picker */}
         <Text style={styles.label}>VESSEL</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hScroll}>
-          {VESSELS.map((v) => (
+          {VESSELS.map(v => (
             <TouchableOpacity
               key={v}
               style={[styles.chip, vessel === v && styles.chipActive]}
@@ -111,7 +157,7 @@ export default function CreatePostScreen() {
         {/* Toppings picker */}
         <Text style={styles.label}>TOPPINGS</Text>
         <View style={styles.toppingGrid}>
-          {TOPPINGS.map((t) => {
+          {TOPPINGS.map(t => {
             const selected = toppings.includes(t);
             return (
               <TouchableOpacity
@@ -165,12 +211,36 @@ const styles = StyleSheet.create({
   title:  { fontFamily: Font.pixel, fontSize: FontSize.lg, color: '#000' },
   post:   { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#E05252' },
   content: { paddingHorizontal: 20, paddingTop: 20 },
-  spriteWrapper: {
+  photoWrapper: {
     alignSelf: 'center',
+    width: 280,
+    height: 280,
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 28,
+    backgroundColor: '#f5f5f5',
   },
+  photoPreview: { width: '100%', height: '100%' },
+  photoEditBadge: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  photoEditText: { fontFamily: Font.pixel, fontSize: FontSize.xs, color: '#fff' },
+  photoCta: {
+    position: 'absolute',
+    bottom: 10,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  photoCtaText: { fontFamily: Font.pixel, fontSize: FontSize.sm, color: '#fff' },
   label: {
     fontFamily: Font.pixel,
     fontSize: FontSize.sm,
@@ -207,12 +277,7 @@ const styles = StyleSheet.create({
   chipEmoji: { fontSize: 24, marginBottom: 4 },
   chipLabel: { fontFamily: Font.pixel, fontSize: FontSize.xs, color: '#aaa' },
   chipLabelActive: { color: '#000' },
-  toppingGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 24,
-  },
+  toppingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
   toppingChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,

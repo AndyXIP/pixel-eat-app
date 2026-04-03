@@ -10,14 +10,126 @@ import {
   Pressable,
   StyleSheet,
   Image,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Font, FontSize } from '@/constants/theme';
 import INGREDIENT_IMAGES from '@/constants/ingredientImages';
 import { CircleCountryFlag, type CountryCode } from 'react-native-circle-flags';
 import DishModal, { type DishEntry } from '@/components/DishModal';
-import { useApi } from '@/hooks/useApi';
-import { getProfile, type ApiProfile, type ApiDish } from '@/services/api';
+import { useData } from '@/contexts/DataContext';
+import { updateProfile, uploadAvatar, type ApiProfile, type ApiDish } from '@/services/api';
+
+// ── Edit profile modal ────────────────────────────────────────────────────────
+
+function EditProfileModal({
+  current,
+  onClose,
+  onSaved,
+}: {
+  current: { displayName: string; avatarUrl: string };
+  onClose: () => void;
+  onSaved: (displayName: string, avatarUrl: string) => void;
+}) {
+  const [displayName, setDisplayName] = useState(current.displayName);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const pickAvatar = () => {
+    Alert.alert('Change photo', undefined, [
+      {
+        text: 'Take photo',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') { Alert.alert('Camera permission required'); return; }
+          const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+          if (!result.canceled) setAvatarUri(result.assets[0].uri);
+        },
+      },
+      {
+        text: 'Choose from library',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') { Alert.alert('Photo library permission required'); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, allowsEditing: true, aspect: [1, 1] });
+          if (!result.canceled) setAvatarUri(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      let newAvatarUrl = current.avatarUrl;
+      if (avatarUri) newAvatarUrl = await uploadAvatar(avatarUri);
+      await updateProfile({
+        display_name: displayName.trim() || undefined,
+        avatar_url: newAvatarUrl !== current.avatarUrl ? newAvatarUrl : undefined,
+      });
+      onSaved(displayName.trim() || current.displayName, newAvatarUrl);
+      onClose();
+    } catch (e: any) {
+      Alert.alert('Failed to save', e.message ?? 'Something went wrong');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const previewUri = avatarUri ?? (current.avatarUrl || undefined);
+
+  return (
+    <Modal visible animationType="slide" transparent>
+      <Pressable style={edit.backdrop} onPress={onClose}>
+        <Pressable style={edit.card} onPress={() => {}}>
+          <Text style={edit.title}>EDIT PROFILE</Text>
+
+          <TouchableOpacity style={edit.avatarWrapper} onPress={pickAvatar} activeOpacity={0.8}>
+            {previewUri
+              ? <Image source={{ uri: previewUri }} style={edit.avatar} resizeMode="cover" />
+              : <View style={[edit.avatar, edit.avatarPlaceholder]} />}
+            <View style={edit.avatarBadge}><Text style={edit.avatarBadgeText}>CHANGE</Text></View>
+          </TouchableOpacity>
+
+          <Text style={edit.label}>DISPLAY NAME</Text>
+          <TextInput
+            style={edit.input}
+            value={displayName}
+            onChangeText={setDisplayName}
+            autoCapitalize="words"
+            maxLength={40}
+            placeholder="your name"
+            placeholderTextColor="#bbb"
+          />
+
+          <TouchableOpacity style={edit.saveBtn} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
+            {saving
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={edit.saveBtnText}>SAVE</Text>}
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const edit = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  card: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40, alignItems: 'center' },
+  title: { fontFamily: Font.pixel, fontSize: FontSize.lg, color: '#000', marginBottom: 24 },
+  avatarWrapper: { marginBottom: 24, position: 'relative' },
+  avatar: { width: 100, height: 100, borderRadius: 50 },
+  avatarPlaceholder: { backgroundColor: '#eee' },
+  avatarBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#000', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  avatarBadgeText: { fontFamily: Font.pixel, fontSize: FontSize.xs, color: '#fff' },
+  label: { fontFamily: Font.pixel, fontSize: FontSize.sm, color: '#999', letterSpacing: 1, alignSelf: 'flex-start', marginBottom: 8 },
+  input: { width: '100%', borderWidth: 1.5, borderColor: '#eee', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontFamily: Font.pixel, fontSize: FontSize.md, color: '#000', backgroundColor: '#fafafa', marginBottom: 24 },
+  saveBtn: { width: '100%', backgroundColor: '#000', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
+  saveBtnText: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#fff', letterSpacing: 1 },
+});
 
 // ── Cuisine flags ─────────────────────────────────────────────────────────────
 
@@ -155,7 +267,10 @@ function PinnedTile({ dish }: { dish: ApiDish }) {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
-  const { data: profile, loading } = useApi(getProfile);
+  const { profile, loading } = useData();
+  const [editOpen, setEditOpen] = useState(false);
+  const [localDisplayName, setLocalDisplayName] = useState<string | null>(null);
+  const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(null);
 
   if (loading || !profile) {
     return (
@@ -165,7 +280,9 @@ export default function ProfileScreen() {
     );
   }
 
-  const { displayName, username, avatarUrl, pinnedDishes, ingredientData, cuisineData, stats: s } = profile;
+  const displayName = localDisplayName ?? profile.displayName;
+  const avatarUrl   = localAvatarUrl   ?? profile.avatarUrl;
+  const { username, pinnedDishes, ingredientData, cuisineData, stats: s } = profile;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -176,7 +293,7 @@ export default function ProfileScreen() {
         <Text style={styles.username}>@{username}</Text>
 
         <View style={styles.btnRow}>
-          <TouchableOpacity style={styles.editBtn} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.editBtn} activeOpacity={0.7} onPress={() => setEditOpen(true)}>
             <Text style={styles.editBtnText}>EDIT PROFILE</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.signOutBtn} activeOpacity={0.7} onPress={() => supabase.auth.signOut()}>
@@ -199,16 +316,31 @@ export default function ProfileScreen() {
         <View style={styles.bottomStats}>
           <View style={styles.bottomStatBlock}>
             <Text style={styles.sectionLabel}>MOST USED{'\n'}INGREDIENT</Text>
-            <IngredientEmoji data={ingredientData} />
+            {ingredientData.length > 0
+              ? <IngredientEmoji data={ingredientData} />
+              : <Text style={styles.emptyHint}>no data yet</Text>}
           </View>
           <View style={styles.bottomStatBlock}>
             <Text style={styles.sectionLabel}>MOST COOKED{'\n'}CUISINE</Text>
-            <CuisineFlags data={cuisineData} />
+            {cuisineData.length > 0
+              ? <CuisineFlags data={cuisineData} />
+              : <Text style={styles.emptyHint}>no data yet</Text>}
           </View>
         </View>
 
         <View style={styles.footer} />
       </ScrollView>
+
+      {editOpen && (
+        <EditProfileModal
+          current={{ displayName, avatarUrl }}
+          onClose={() => setEditOpen(false)}
+          onSaved={(name, avatar) => {
+            setLocalDisplayName(name);
+            setLocalAvatarUrl(avatar);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -232,4 +364,5 @@ const styles = StyleSheet.create({
   bottomStats: { flexDirection: 'row', width: '100%', justifyContent: 'space-around', alignItems: 'flex-start' },
   bottomStatBlock: { alignItems: 'center' },
   footer: { height: 24 },
+  emptyHint: { fontFamily: Font.pixel, fontSize: FontSize.xs, color: '#ccc', marginTop: 8 },
 });

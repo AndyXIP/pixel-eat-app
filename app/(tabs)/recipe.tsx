@@ -19,8 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Font, FontSize } from '@/constants/theme';
 import RecipeModal, { type RecipeEntry } from '@/components/RecipeModal';
 import { CircleCountryFlag, type CountryCode } from 'react-native-circle-flags';
-import { useApi } from '@/hooks/useApi';
-import { getRecipes } from '@/services/api';
+import { useData } from '@/contexts/DataContext';
 import { apiImageUrl } from '@/constants/api';
 
 const CUISINE_OPTIONS: { code: string; label: string }[] = [
@@ -446,7 +445,7 @@ const swipe = StyleSheet.create({
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function RecipeScreen() {
-  const { data: apiRecipes, loading } = useApi(getRecipes);
+  const { recipes: apiRecipes, loading } = useData();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Recipe | null>(null);

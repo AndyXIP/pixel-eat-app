@@ -14,8 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { PostCard } from '@/components/PostCard';
-import { useApi } from '@/hooks/useApi';
-import { getFeed, searchUsers, addFriend, type ApiUser } from '@/services/api';
+import { useData } from '@/contexts/DataContext';
+import { searchUsers, addFriend, type ApiUser } from '@/services/api';
 import { Font, FontSize } from '@/constants/theme';
 
 // ── Add friends modal ─────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ const modal = StyleSheet.create({
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function FriendsScreen() {
-  const { data: posts, loading } = useApi(getFeed);
+  const { feed: posts, loading } = useData();
   const [addOpen, setAddOpen] = useState(false);
 
   return (
