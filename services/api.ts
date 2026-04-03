@@ -101,8 +101,16 @@ export type ApiEvent = {
 
 // ── API calls ──────────────────────────────────────────────────────────────────
 
-export const getFeed    = (): Promise<ApiPost[]>    => apiFetch('/feed');
-export const getRecipes = (): Promise<ApiRecipe[]>  => apiFetch('/recipes');
-export const getDiary   = (): Promise<ApiDiary>     => apiFetch('/diary');
-export const getProfile = (): Promise<ApiProfile>   => apiFetch('/profile/me');
-export const getEvent   = (): Promise<ApiEvent>     => apiFetch('/events/current');
+export const getFeed      = (): Promise<ApiPost[]>    => apiFetch('/feed');
+export const getRecipes   = (): Promise<ApiRecipe[]>  => apiFetch('/recipes');
+export const getDiary     = (): Promise<ApiDiary>     => apiFetch('/diary');
+export const getProfile   = (): Promise<ApiProfile>   => apiFetch('/profile/me');
+export const getEvent     = (): Promise<ApiEvent>     => apiFetch('/events/current');
+export const getFriends   = (): Promise<ApiUser[]>    => apiFetch('/friends');
+export const searchUsers  = (q: string): Promise<ApiUser[]> => apiFetch(`/friends/search?q=${encodeURIComponent(q)}`);
+export const addFriend    = (userId: string): Promise<{ ok: boolean }> => apiFetch(`/friends/${userId}`, { method: 'POST' });
+export const removeFriend = (userId: string): Promise<{ ok: boolean }> => apiFetch(`/friends/${userId}`, { method: 'DELETE' });
+
+export type QuickPostData = { vessel_type: string; is_hot: boolean; caption?: string; toppings: string[] };
+export const createQuickPost = (data: QuickPostData): Promise<unknown> =>
+  apiFetch('/posts/quick', { method: 'POST', body: JSON.stringify(data) });

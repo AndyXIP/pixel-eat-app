@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   ActivityIndicator,
   ScrollView,
@@ -174,9 +175,14 @@ export default function ProfileScreen() {
         <Text style={styles.displayName}>{displayName}</Text>
         <Text style={styles.username}>@{username}</Text>
 
-        <TouchableOpacity style={styles.editBtn} activeOpacity={0.7}>
-          <Text style={styles.editBtnText}>EDIT PROFILE</Text>
-        </TouchableOpacity>
+        <View style={styles.btnRow}>
+          <TouchableOpacity style={styles.editBtn} activeOpacity={0.7}>
+            <Text style={styles.editBtnText}>EDIT PROFILE</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.signOutBtn} activeOpacity={0.7} onPress={() => supabase.auth.signOut()}>
+            <Text style={styles.signOutBtnText}>SIGN OUT</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionLabel}>PINNED DISHES</Text>
         <View style={styles.pinnedRow}>
@@ -213,8 +219,11 @@ const styles = StyleSheet.create({
   avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 14 },
   displayName: { fontFamily: Font.pixel, fontSize: FontSize.xl, color: '#000', marginBottom: 4 },
   username: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#888', marginBottom: 16 },
-  editBtn: { borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 4, marginBottom: 28 },
+  btnRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
+  editBtn: { borderWidth: 1.5, borderColor: '#000', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 4 },
   editBtnText: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#000', letterSpacing: 0.5 },
+  signOutBtn: { borderWidth: 1.5, borderColor: '#E05252', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 4 },
+  signOutBtnText: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#E05252', letterSpacing: 0.5 },
   sectionLabel: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#000', letterSpacing: 0.5, textAlign: 'center', marginBottom: 14, lineHeight: 24 },
   pinnedRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
   pinnedTile: { width: 100, height: 100, borderRadius: 10, overflow: 'hidden' },

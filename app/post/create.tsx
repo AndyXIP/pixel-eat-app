@@ -1,8 +1,3 @@
-/**
- * Post Creation Flow (modal)
- * Steps: Camera → Vessel → Base → Toppings → Garnish → Hot/Cold → Confirm
- * TODO: wire up expo-camera, step flow, and API upload
- */
 import React, { useState } from 'react';
 import {
   View,
@@ -10,11 +5,15 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  TextInput,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { SpriteCompositor } from '@/components/SpriteCompositor';
 import { Font, FontSize } from '@/constants/theme';
+import { createQuickPost } from '@/services/api';
 
 const VESSELS = ['bowl', 'plate', 'sandwich', 'wrap', 'pizza', 'soup', 'pan', 'mug'];
 const VESSEL_EMOJI: Record<string, string> = {
@@ -28,6 +27,8 @@ export default function CreatePostScreen() {
   const [vessel, setVessel] = useState('bowl');
   const [toppings, setToppings] = useState<string[]>([]);
   const [isHot, setIsHot] = useState(true);
+  const [caption, setCaption] = useState('');
+  const [posting, setPosting] = useState(false);
 
   const toggleTopping = (t: string) => {
     setToppings((prev) =>
@@ -35,15 +36,35 @@ export default function CreatePostScreen() {
     );
   };
 
+  const handlePost = async () => {
+    setPosting(true);
+    try {
+      await createQuickPost({
+        vessel_type: vessel,
+        is_hot: isHot,
+        caption: caption.trim() || undefined,
+        toppings,
+      });
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Failed to post', e.message ?? 'Something went wrong');
+    } finally {
+      setPosting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} disabled={posting}>
           <Text style={styles.cancel}>CANCEL</Text>
         </TouchableOpacity>
         <Text style={styles.title}>NEW POST</Text>
-        <TouchableOpacity>
-          <Text style={styles.post}>POST</Text>
+        <TouchableOpacity onPress={handlePost} disabled={posting} activeOpacity={0.7}>
+          {posting
+            ? <ActivityIndicator color="#E05252" />
+            : <Text style={styles.post}>POST</Text>
+          }
         </TouchableOpacity>
       </View>
 
@@ -57,6 +78,18 @@ export default function CreatePostScreen() {
             size={280}
           />
         </View>
+
+        {/* Caption */}
+        <Text style={styles.label}>CAPTION</Text>
+        <TextInput
+          style={styles.captionInput}
+          placeholder="what did you make?"
+          placeholderTextColor="#bbb"
+          value={caption}
+          onChangeText={setCaption}
+          multiline
+          maxLength={200}
+        />
 
         {/* Vessel picker */}
         <Text style={styles.label}>VESSEL</Text>
@@ -129,8 +162,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   cancel: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#888' },
-  title: { fontFamily: Font.pixel, fontSize: FontSize.lg, color: '#000' },
-  post: { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#E05252' },
+  title:  { fontFamily: Font.pixel, fontSize: FontSize.lg, color: '#000' },
+  post:   { fontFamily: Font.pixel, fontSize: FontSize.md, color: '#E05252' },
   content: { paddingHorizontal: 20, paddingTop: 20 },
   spriteWrapper: {
     alignSelf: 'center',
@@ -144,6 +177,20 @@ const styles = StyleSheet.create({
     color: '#999',
     letterSpacing: 1,
     marginBottom: 12,
+  },
+  captionInput: {
+    borderWidth: 1.5,
+    borderColor: '#eee',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: Font.pixel,
+    fontSize: FontSize.md,
+    color: '#000',
+    backgroundColor: '#fafafa',
+    minHeight: 72,
+    textAlignVertical: 'top',
+    marginBottom: 24,
   },
   hScroll: { marginBottom: 24 },
   chip: {

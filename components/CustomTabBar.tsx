@@ -6,12 +6,14 @@ import {
   StyleSheet,
   Alert,
   ActionSheetIOS,
+  Platform,
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Font, FontSize } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 
 // Routes order must match (tabs)/_layout.tsx Tabs.Screen order:
 // index → FRIENDS, diary → DIARY, recipe → RECIPE, profile → PROFILE
@@ -34,16 +36,25 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   const rightRoutes = visibleRoutes.slice(half);     // RECIPE, PROFILE
 
   const handleDuckPress = () => {
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: ['New Post', 'Notifications', 'Settings', 'Cancel'],
-        cancelButtonIndex: 3,
-      },
-      (index) => {
-        if (index === 0) router.push('/post/create');
-        // Settings / Notifications: wire up later
-      }
-    );
+    const options = ['New Post', 'Notifications', 'Settings', 'Sign Out', 'Cancel'];
+    const cancelIndex = 4;
+    const destructiveIndex = 3;
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
+        (index) => {
+          if (index === 0) router.push('/post/create');
+          if (index === destructiveIndex) supabase.auth.signOut();
+        }
+      );
+    } else {
+      Alert.alert('Menu', undefined, [
+        { text: 'New Post', onPress: () => router.push('/post/create') },
+        { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
   };
 
   const renderTab = (route: typeof state.routes[0]) => {

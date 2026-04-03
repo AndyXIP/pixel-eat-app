@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   View,
   Text,
@@ -10,29 +11,32 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DIARY } from '@/constants/mockData';
 import { Font, FontSize } from '@/constants/theme';
 import INGREDIENT_IMAGES from '@/constants/ingredientImages';
-import MOCK_FOOD_IMAGES from '@/constants/mockFoodImages';
-import MOCK_POST_IMAGES from '@/constants/mockPostImages';
 import DishModal, { type DishEntry } from '@/components/DishModal';
+import { useApi } from '@/hooks/useApi';
+import { getDiary, type ApiDiary, type ApiDish, type ApiLoggedDay } from '@/services/api';
+import { apiImageUrl } from '@/constants/api';
 
 const WEEK_DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-type LoggedDay = { day: number; photoKey: string | null; caption: string | null };
+// ── Day modal ─────────────────────────────────────────────────────────────────
 
-function DayModal({ entry, onClose }: { entry: LoggedDay; onClose: () => void }) {
-  const photoSource = entry.photoKey ? MOCK_POST_IMAGES[entry.photoKey] : null;
+function DayModal({ entry, onClose }: { entry: ApiLoggedDay; onClose: () => void }) {
   return (
     <Modal visible animationType="fade" transparent>
       <Pressable style={dayModal.backdrop} onPress={onClose}>
         <Pressable style={dayModal.card} onPress={() => {}}>
           <View style={dayModal.imageBox}>
-            {photoSource ? (
-              <Image source={photoSource} style={dayModal.photo} resizeMode="cover" />
+            {entry.photoUrl ? (
+              <Image source={{ uri: entry.photoUrl }} style={dayModal.photo} resizeMode="cover" />
             ) : (
               <View style={dayModal.noPhoto}>
-                <Image source={MOCK_POST_IMAGES['pan']} style={dayModal.panLarge} resizeMode="contain" />
+                <Image
+                  source={{ uri: apiImageUrl('mockimages/pan.png') }}
+                  style={dayModal.panLarge}
+                  resizeMode="contain"
+                />
                 <Text style={dayModal.noPhotoText}>no photo for this day</Text>
               </View>
             )}
@@ -93,6 +97,8 @@ const dayModal = StyleSheet.create({
   },
 });
 
+// ── Calendar grid ─────────────────────────────────────────────────────────────
+
 function CalendarGrid({
   year,
   monthIndex,
@@ -100,9 +106,9 @@ function CalendarGrid({
 }: {
   year: number;
   monthIndex: number;
-  loggedDays: LoggedDay[];
+  loggedDays: ApiLoggedDay[];
 }) {
-  const [selected, setSelected] = useState<LoggedDay | null>(null);
+  const [selected, setSelected] = useState<ApiLoggedDay | null>(null);
   const loggedMap = new Map(loggedDays.map(e => [e.day, e]));
   const firstDay = new Date(year, monthIndex, 1).getDay();
   const startOffset = (firstDay + 6) % 7;
@@ -141,7 +147,7 @@ function CalendarGrid({
                       <Text style={cal.dayNum}>{day}</Text>
                       {entry && (
                         <Image
-                          source={MOCK_POST_IMAGES['pan']}
+                          source={{ uri: apiImageUrl('mockimages/pan.png') }}
                           style={cal.panIcon}
                           resizeMode="contain"
                         />
@@ -205,7 +211,9 @@ const cal = StyleSheet.create({
   },
 });
 
-function DiaryStats({ s }: { s: typeof DIARY.stats }) {
+// ── Diary stats ───────────────────────────────────────────────────────────────
+
+function DiaryStats({ s }: { s: ApiDiary['stats'] }) {
   return (
     <View style={dStats.row}>
       <StatBlock value={s.recipesShared} label={'recipes\nshared'} />
@@ -248,6 +256,10 @@ const dStats = StyleSheet.create({
   },
 });
 
+// ── Challenge modal ───────────────────────────────────────────────────────────
+
+type ChallengeDetail = NonNullable<ApiDiary['challengeDetail']>;
+
 function ChallengeModal({
   visible,
   onClose,
@@ -257,7 +269,7 @@ function ChallengeModal({
   visible: boolean;
   onClose: () => void;
   title: string;
-  detail: typeof DIARY.challengeDetail;
+  detail: ChallengeDetail;
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -265,7 +277,6 @@ function ChallengeModal({
         <Pressable style={cm.card} onPress={() => {}}>
           <Text style={cm.title}>{title}</Text>
           <Text style={cm.body}>{detail.description}</Text>
-          <Text style={cm.prompt}>{detail.loggingPrompt}</Text>
           <View style={cm.ingredientGrid}>
             {detail.ingredients.map((ing) => (
               <View key={ing.label} style={cm.ingredientItem}>
@@ -274,7 +285,6 @@ function ChallengeModal({
               </View>
             ))}
           </View>
-          <Text style={cm.prompt}>{detail.recipePrompt}</Text>
           {detail.featuredRecipes.map((r) => (
             <Text key={r} style={cm.recipe}>{r}</Text>
           ))}
@@ -313,13 +323,6 @@ const cm = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 14,
   },
-  prompt: {
-    fontFamily: Font.pixel,
-    fontSize: FontSize.sm,
-    color: '#333',
-    marginBottom: 14,
-    lineHeight: 22,
-  },
   ingredientGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -349,6 +352,8 @@ const cm = StyleSheet.create({
   },
 });
 
+// ── Lantern ───────────────────────────────────────────────────────────────────
+
 function Lantern({ filled }: { filled: boolean }) {
   return (
     <View style={[styles.lantern, filled ? styles.lanternFilled : styles.lanternEmpty]}>
@@ -361,18 +366,20 @@ function Lantern({ filled }: { filled: boolean }) {
   );
 }
 
-function DishTile({ item }: { item: typeof DIARY.dishesThisWeek[0] }) {
+// ── Dish tile ─────────────────────────────────────────────────────────────────
+
+function DishTile({ item }: { item: ApiDish }) {
   const [selected, setSelected] = useState<DishEntry | null>(null);
-  const isEmpty = !item.imageKey;
+  const isEmpty = !item.imageUrl;
 
   const handlePress = () => {
-    if (!item.imageKey || !item.name) return;
+    if (!item.imageUrl || !item.name) return;
     setSelected({
-      imageSource: MOCK_FOOD_IMAGES[item.imageKey],
+      imageUrl: item.imageUrl,
       name: item.name,
       cuisine: item.cuisine,
       ingredients: item.ingredients,
-      recipeId: item.recipeId,
+      recipe: item.recipe,
     });
   };
 
@@ -383,8 +390,8 @@ function DishTile({ item }: { item: typeof DIARY.dishesThisWeek[0] }) {
         activeOpacity={isEmpty ? 1 : 0.75}
         onPress={handlePress}
       >
-        {item.imageKey ? (
-          <Image source={MOCK_FOOD_IMAGES[item.imageKey]} style={styles.dishImage} resizeMode="cover" />
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.dishImage} resizeMode="cover" />
         ) : null}
       </TouchableOpacity>
       {selected && <DishModal dish={selected} onClose={() => setSelected(null)} />}
@@ -392,18 +399,30 @@ function DishTile({ item }: { item: typeof DIARY.dishesThisWeek[0] }) {
   );
 }
 
-const hasEvent = !!DIARY.challengeTitle;
+// ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function DiaryScreen() {
-  const { month, year, monthIndex, loggedDays, stats, challengeTitle, challengeDetail, progress, total, mealsUntilBadge, dishesThisWeek } = DIARY;
+  const { data: diary, loading } = useApi(getDiary);
   const [tab, setTab] = useState<'diary' | 'events'>('diary');
   const [challengeOpen, setChallengeOpen] = useState(false);
 
-  const lanterns = Array.from({ length: total }, (_, i) => i < progress);
+  if (loading || !diary) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
+
+  const { month, year, monthIndex, loggedDays, stats, challengeTitle, challengeDetail, lanternProgress, dishesThisWeek } = diary;
+  const { filled, total, mealsUntilBadge } = lanternProgress;
+  const hasEvent = !!challengeTitle;
+
+  const lanterns = Array.from({ length: total }, (_, i) => i < filled);
   const topRow = lanterns.slice(0, 5);
   const bottomRow = lanterns.slice(5, 10);
 
-  const dishRows: typeof dishesThisWeek[] = [];
+  const dishRows: ApiDish[][] = [];
   for (let i = 0; i < dishesThisWeek.length; i += 3) {
     dishRows.push(dishesThisWeek.slice(i, i + 3));
   }
@@ -455,20 +474,22 @@ export default function DiaryScreen() {
               <Image source={require('@/assets/images/lucky_duck.png')} style={styles.duckBig} resizeMode="contain" />
             </TouchableOpacity>
 
-            <ChallengeModal
-              visible={challengeOpen}
-              onClose={() => setChallengeOpen(false)}
-              title={challengeTitle}
-              detail={challengeDetail}
-            />
+            {challengeDetail && (
+              <ChallengeModal
+                visible={challengeOpen}
+                onClose={() => setChallengeOpen(false)}
+                title={challengeTitle!}
+                detail={challengeDetail}
+              />
+            )}
 
-            <Text style={styles.sectionLabel}>CHALLENGE DETAILS</Text>
+            <Text style={styles.sectionLabel}>CHALLENGE PROGRESS</Text>
             <View style={styles.lanternGrid}>
               <View style={styles.lanternRow}>
-                {topRow.map((filled, i) => <Lantern key={`t${i}`} filled={filled} />)}
+                {topRow.map((f, i) => <Lantern key={`t${i}`} filled={f} />)}
               </View>
               <View style={styles.lanternRow}>
-                {bottomRow.map((filled, i) => <Lantern key={`b${i}`} filled={filled} />)}
+                {bottomRow.map((f, i) => <Lantern key={`b${i}`} filled={f} />)}
               </View>
             </View>
 

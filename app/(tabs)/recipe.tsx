@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,21 +8,20 @@ import {
   ScrollView,
   Modal,
   Pressable,
-  FlatList,
   Animated,
   PanResponder,
   Image,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RECIPES } from '@/constants/mockData';
 import { Font, FontSize } from '@/constants/theme';
-import MOCK_PROFILE_IMAGES from '@/constants/mockProfileImages';
 import RecipeModal, { type RecipeEntry } from '@/components/RecipeModal';
 import { CircleCountryFlag, type CountryCode } from 'react-native-circle-flags';
-
-const PROFILE_KEYS = Object.keys(MOCK_PROFILE_IMAGES);
+import { useApi } from '@/hooks/useApi';
+import { getRecipes } from '@/services/api';
+import { apiImageUrl } from '@/constants/api';
 
 const CUISINE_OPTIONS: { code: string; label: string }[] = [
   { code: 'tw', label: 'Taiwanese' },
@@ -67,6 +66,7 @@ function AddRecipeModal({ onClose, onSave }: { onClose: () => void; onSave: (r: 
       cuisine: cuisine ?? 'xx',
       creatorColor: '#5A6E7F',
       creatorUsername: 'secondapron',
+      creatorAvatarUrl: apiImageUrl('mockprofilepics/leo.png'),
       lastMade: null,
       ingredients,
       notes: notes.trim(),
@@ -153,7 +153,11 @@ function AddRecipeModal({ onClose, onSave }: { onClose: () => void; onSave: (r: 
 
             {/* Creator */}
             <View style={add.creatorRow}>
-              <Image source={MOCK_PROFILE_IMAGES['secondapron']} style={add.creatorAvatar} resizeMode="cover" />
+              <Image
+                source={{ uri: apiImageUrl('mockprofilepics/leo.png') }}
+                style={add.creatorAvatar}
+                resizeMode="cover"
+              />
               <Text style={add.creatorLabel}>added by you</Text>
             </View>
 
@@ -346,21 +350,17 @@ const DELETE_BTN_WIDTH = 70;
 
 function SwipeableRow({
   item,
-  index,
   onPress,
   onDelete,
 }: {
   item: Recipe;
-  index: number;
   onPress: () => void;
   onDelete: () => void;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const [isOpen, setIsOpen] = useState(false);
   const hasDate = !!item.lastMade;
-  const avatarSource = item.creatorUsername
-    ? MOCK_PROFILE_IMAGES[item.creatorUsername]
-    : MOCK_PROFILE_IMAGES[PROFILE_KEYS[index % PROFILE_KEYS.length]];
+  const avatarUri = item.creatorAvatarUrl ?? apiImageUrl('mockprofilepics/leo.png');
 
   const panResponder = useRef(
     PanResponder.create({
@@ -408,7 +408,7 @@ function SwipeableRow({
           <Text style={[styles.recipeName, !hasDate && styles.recipeNameFaint]} numberOfLines={1}>
             {item.name}
           </Text>
-          <Image source={avatarSource} style={styles.creatorDot} resizeMode="cover" />
+          <Image source={{ uri: avatarUri }} style={styles.creatorDot} resizeMode="cover" />
           <Text style={[styles.lastMade, !hasDate && styles.lastMadeFaint]}>
             {item.lastMade ?? '- -'}
           </Text>
@@ -446,10 +446,16 @@ const swipe = StyleSheet.create({
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function RecipeScreen() {
-  const [recipes, setRecipes] = useState<Recipe[]>(RECIPES as Recipe[]);
+  const { data: apiRecipes, loading } = useApi(getRecipes);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+
+  // Sync API data into local state once loaded
+  useEffect(() => {
+    if (apiRecipes) setRecipes(apiRecipes as Recipe[]);
+  }, [apiRecipes]);
 
   const q = query.toLowerCase();
   const filtered = recipes.filter((r) =>
@@ -459,6 +465,14 @@ export default function RecipeScreen() {
 
   const deleteRecipe = (id: string) =>
     setRecipes((prev) => prev.filter((r) => r.id !== id));
+
+  if (loading && recipes.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ActivityIndicator style={{ flex: 1 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -490,7 +504,6 @@ export default function RecipeScreen() {
           <SwipeableRow
             key={item.id}
             item={item}
-            index={i}
             onPress={() => setSelected(item)}
             onDelete={() => deleteRecipe(item.id)}
           />

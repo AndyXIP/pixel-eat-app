@@ -9,6 +9,7 @@ export type RecipeEntry = {
   cuisine: string;
   creatorColor: string;
   creatorUsername?: string;
+  creatorAvatarUrl?: string;
   lastMade: string | null;
   ingredients: string[];
   notes: string;
