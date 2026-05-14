@@ -28,14 +28,14 @@ type Post = {
 export function PostCard({ post }: { post: Post }) {
   const [spriteMain, setSpriteMain] = useState(false);
   const photoSource = { uri: post.photoUrl };
-  const avatarSource = { uri: post.user.avatarUrl };
+  const avatarSource = post.user.avatarUrl ? { uri: post.user.avatarUrl } : null;
 
   return (
     <View style={styles.wrapper}>
       {/* User header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Image source={avatarSource} style={styles.avatar} resizeMode="cover" />
+          {avatarSource ? <Image source={avatarSource} style={styles.avatar} resizeMode="cover" /> : <View style={[styles.avatar, { backgroundColor: '#eee' }]} />}
           <View>
             <Text style={styles.displayName}>{post.user.displayName}</Text>
             <Text style={styles.username}>@{post.user.username}</Text>

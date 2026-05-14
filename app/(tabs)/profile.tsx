@@ -287,7 +287,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <Image source={{ uri: avatarUrl }} style={styles.avatar} resizeMode="cover" />
+        {avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatar} resizeMode="cover" /> : <View style={[styles.avatar, { backgroundColor: '#eee' }]} />}
 
         <Text style={styles.displayName}>{displayName}</Text>
         <Text style={styles.username}>@{username}</Text>
