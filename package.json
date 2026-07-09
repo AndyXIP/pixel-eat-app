@@ -53,6 +53,6 @@
   },
   "private": true,
   "lint-staged": {
-    "*.{ts,tsx}": "eslint --max-warnings=0"
+    "*.{ts,tsx}": "eslint --fix --max-warnings=0"
   }
 }
